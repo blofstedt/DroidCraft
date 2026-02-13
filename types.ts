@@ -22,7 +22,15 @@ export interface ProjectState {
   envVariables?: Record<string, string>;
   lastSaved?: number;
   persistentInstructions?: string;
-  screenPositions?: Record<string, ScreenPosition>; // Persistent canvas positions
+  screenPositions?: Record<string, ScreenPosition>;
+  keystore?: KeystoreState;
+}
+
+export interface KeystoreState {
+  alias: string;
+  password?: string;
+  validity: number;
+  generated: boolean;
 }
 
 export interface FirebaseState {
@@ -43,7 +51,7 @@ export interface FirebaseUser {
 
 export interface FirebaseCollection {
   name: string;
-  schema: Record<string, string>;
+  schema: Record<string, any>;
   recordCount: number;
 }
 
@@ -51,7 +59,7 @@ export interface HistoryEntry {
   id: string;
   timestamp: number;
   description: string;
-  author: 'user' | 'ai';
+  author: 'user' | 'ai' | 'system';
   snapshot: Record<string, string>;
 }
 
@@ -74,20 +82,17 @@ export interface ChatMessage {
 export enum BuildStatus {
   IDLE = 'IDLE',
   PREPARING = 'PREPARING',
-  BUNDLING = 'BUNDLING',
-  WRAPPING = 'WRAPPING',
   SIGNING = 'SIGNING',
+  BUILDING = 'BUILDING',
   SUCCESS = 'SUCCESS',
   FAILED = 'FAILED'
 }
 
-/**
- * Interface representing a UI element in the legacy Android XML simulation.
- */
+// Added UIElement interface for legacy/obsolete components
 export interface UIElement {
   id: string;
   tag: string;
-  attributes: Record<string, string>;
+  attributes: Record<string, any>;
   children: UIElement[];
 }
 

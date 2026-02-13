@@ -1,10 +1,13 @@
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ProjectState, AppFile, ChatMessage, ScreenPosition, UIElementRef, HistoryEntry } from './types';
 import { getInitialPwaProject } from './utils/projectTemplates';
 import { GeminiAppService, GeminiUpdateResponse } from './services/geminiService';
 import AppCanvas from './components/AppCanvas';
 import AmateurLogicView from './components/AmateurLogicView';
+import BuildPanel from './components/BuildPanel';
+import FirebasePanel from './components/FirebasePanel';
+import VersionsPanel from './components/VersionsPanel';
 import { 
   CodeIcon, 
   MessageSquareIcon, 
@@ -15,9 +18,6 @@ import {
   PlusCircleIcon,
   RefreshCwIcon,
   MousePointer2Icon,
-  PenToolIcon,
-  PaletteIcon,
-  TypeIcon,
   LayersIcon,
   PlusIcon,
   EyeIcon,
@@ -30,12 +30,11 @@ import {
   BookOpenIcon,
   RotateCcwIcon,
   DatabaseIcon,
-  ScrollTextIcon,
   XIcon,
   Info as InfoIcon
 } from 'lucide-react';
 
-const STORAGE_KEY = 'droidcraft_projects_v5';
+const STORAGE_KEY = 'droidcraft_projects_v6';
 const DEFAULT_INSTRUCTIONS = `DroidCraft Studio Rules:
 - Adhere strictly to Tailwind CSS.
 - Maintain a clean "Material Design 3" look.
@@ -71,7 +70,7 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'screens' | 'logic' | 'firebase' | 'versions'>('logic');
+  const [activeTab, setActiveTab] = useState<'screens' | 'logic' | 'firebase' | 'versions' | 'build'>('logic');
   const [editorMode, setEditorMode] = useState<'pro' | 'amateur'>('amateur');
   
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -99,19 +98,34 @@ const App: React.FC = () => {
     });
   }, [project]);
 
+  const recordHistory = (description: string, author: 'user' | 'ai' | 'system', snapshotFiles: Record<string, AppFile>) => {
+    const snapshot: Record<string, string> = {};
+    Object.entries(snapshotFiles).forEach(([path, file]) => { snapshot[path] = file.content; });
+    const newEntry: HistoryEntry = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      description,
+      author,
+      snapshot
+    };
+    return [newEntry, ...(project.history || [])];
+  };
+
   const handleCreateProject = () => {
     if (!newProjectName.trim()) return;
+    const initialFiles = getInitialPwaProject(newProjectName, 'com.droidcraft.app');
     const newProject: ProjectState = { 
       id: Date.now().toString(), 
       name: newProjectName, 
       packageName: 'com.droidcraft.app', 
-      files: getInitialPwaProject(newProjectName, 'com.droidcraft.app'), 
+      files: initialFiles, 
       version: 1, 
       history: [], 
       persistentInstructions: DEFAULT_INSTRUCTIONS, 
       firebase: { config: null, status: 'disconnected', user: null, collections: [], clientId: '' },
       screenPositions: {}
     };
+    newProject.history = recordHistory('Project initialized', 'system', initialFiles);
     setProject(newProject);
     setShowNewProjectModal(false);
     setNewProjectName('');
@@ -142,20 +156,22 @@ const App: React.FC = () => {
         setMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: displayContent } : m));
       }
       
-      // Fix: Cast the parsed JSON to GeminiUpdateResponse to avoid 'unknown' type errors
       const result: GeminiUpdateResponse = JSON.parse(finalResponseText);
       setMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: result.explanation } : m));
       setIsPreviewLoading(true);
+      
       setProject(prev => {
         const newFiles = { ...prev.files };
-        // Fix: result.filesToUpdate and other properties are now correctly typed
         result.filesToUpdate?.forEach((f) => { newFiles[f.path] = { ...f, lastModified: Date.now() } as AppFile; });
         result.newFiles?.forEach((f) => { newFiles[f.path] = { ...f, lastModified: Date.now() } as AppFile; });
         result.deleteFiles?.forEach((path: string) => { delete newFiles[path]; });
-        const snapshot: Record<string, string> = {};
-        Object.entries(newFiles).forEach(([path, file]) => { snapshot[path] = (file as AppFile).content; });
-        const newHistoryEntry: HistoryEntry = { id: Date.now().toString(), timestamp: Date.now(), description: result.explanation || 'Manual Update', author: 'ai', snapshot };
-        return { ...prev, files: newFiles, version: prev.version + 1, history: [newHistoryEntry, ...(prev.history || [])] };
+        
+        return { 
+          ...prev, 
+          files: newFiles, 
+          version: prev.version + 1, 
+          history: recordHistory(result.explanation || 'AI Orchestration Update', 'ai', newFiles)
+        };
       });
       setTimeout(() => setIsPreviewLoading(false), 800);
     } catch (error) {
@@ -164,8 +180,82 @@ const App: React.FC = () => {
     } finally { setIsProcessing(false); }
   };
 
+  // DIRECT ACTIONS (No AI needed)
+  const addScreen = () => {
+    const screenCount = Object.keys(project.files).filter(f => f.endsWith('.html')).length;
+    const path = `screen${screenCount + 1}.html`;
+    const content = `<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen p-8">
+    <h1 class="text-3xl font-black text-slate-800">New Screen</h1>
+    <p class="mt-4 text-slate-500">Add logic to this screen using the orchestrator or direct edits.</p>
+</body>
+</html>`;
+    
+    setProject(prev => {
+      const newFiles = { 
+        ...prev.files, 
+        [path]: { path, content, language: 'html', lastModified: Date.now() } 
+      };
+      return { 
+        ...prev, 
+        files: newFiles, 
+        version: prev.version + 1,
+        history: recordHistory(`Added direct screen: ${path}`, 'user', newFiles)
+      };
+    });
+    setActiveFile(path);
+  };
+
+  const updateFileDirectly = (path: string, content: string) => {
+    setProject(prev => {
+      const newFiles = { ...prev.files, [path]: { ...prev.files[path], content, lastModified: Date.now() } };
+      return { 
+        ...prev, 
+        files: newFiles, 
+        version: prev.version + 1,
+        history: recordHistory(`Direct edit of ${path}`, 'user', newFiles)
+      };
+    });
+  };
+
   const handleAmateurUpdate = (path: string, originalText: string, newText: string) => {
-    handleSendMessage(`In file ${path}, change the value "${originalText}" to "${newText}". Respond with the updated repo.`);
+    // Attempt direct replacement first
+    const file = project.files[path];
+    if (!file) return;
+    
+    // Simple direct replacement logic for common strings
+    if (file.content.includes(originalText)) {
+      const newContent = file.content.replace(originalText, newText);
+      updateFileDirectly(path, newContent);
+    } else {
+      // Fallback to AI if simple replacement fails
+      handleSendMessage(`In file ${path}, change the value "${originalText}" to "${newText}". Respond with the updated repo.`);
+    }
+  };
+
+  const handleRollback = (entry: HistoryEntry) => {
+    if (!confirm("Are you sure you want to rollback to this version? Current changes will be lost.")) return;
+    
+    const newFiles: Record<string, AppFile> = {};
+    Object.entries(entry.snapshot).forEach(([path, content]) => {
+      newFiles[path] = { 
+        path, 
+        content, 
+        language: path.split('.').pop() || 'text', 
+        lastModified: Date.now() 
+      };
+    });
+    
+    setProject(prev => ({
+      ...prev,
+      files: newFiles,
+      version: prev.version + 1,
+      history: recordHistory(`Rollback to ${new Date(entry.timestamp).toLocaleTimeString()}`, 'user', newFiles)
+    }));
   };
 
   return (
@@ -179,6 +269,7 @@ const App: React.FC = () => {
           <button onClick={() => setActiveTab('screens')} className={`p-3 rounded-xl transition-all ${activeTab === 'screens' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}><LayersIcon size={20} /></button>
           <button onClick={() => setActiveTab('firebase')} className={`p-3 rounded-xl transition-all ${activeTab === 'firebase' ? 'bg-orange-600/20 text-orange-400' : 'text-slate-500 hover:text-slate-300'}`}><DatabaseIcon size={20} /></button>
           <button onClick={() => setActiveTab('versions')} className={`p-3 rounded-xl transition-all ${activeTab === 'versions' ? 'bg-purple-600/20 text-purple-400' : 'text-slate-500 hover:text-slate-300'}`}><HistoryIcon size={20} /></button>
+          <button onClick={() => setActiveTab('build')} className={`p-3 rounded-xl transition-all ${activeTab === 'build' ? 'bg-emerald-600/20 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}><SmartphoneIcon size={20} /></button>
         </div>
         <div className="mt-auto">
           <button onClick={() => setShowInstructionsModal(true)} className="p-3 text-slate-500 hover:text-white"><SettingsIcon size={20} /></button>
@@ -186,25 +277,25 @@ const App: React.FC = () => {
       </div>
 
       {/* Primary Sidebar Content */}
-      <div className={`${sidebarOpen ? 'w-96' : 'w-0'} bg-[#111]/40 border-r border-white/5 transition-all duration-300 flex flex-col overflow-hidden`}>
+      <div className={`${sidebarOpen ? 'w-96' : 'w-0'} bg-[#111]/40 border-r border-white/5 transition-all duration-300 flex flex-col overflow-hidden relative`}>
         <div className="p-6 border-b border-white/5 bg-black/20 space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">{activeTab}</h2>
+            <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] leading-none">{activeTab}</h2>
             <button onClick={() => setSidebarOpen(false)} className="p-1.5 hover:bg-white/5 rounded-lg text-slate-500 transition-all"><ChevronRightIcon size={14} className="rotate-180" /></button>
           </div>
           
-          {/* Mode Switcher */}
-          <div className="flex items-center bg-[#050505] p-1 rounded-xl border border-white/5">
-            <button onClick={() => setEditorMode('amateur')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${editorMode === 'amateur' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-600 hover:text-slate-400'}`}><UserIcon size={12} className="inline mr-1" /> Amateur</button>
-            <button onClick={() => setEditorMode('pro')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${editorMode === 'pro' ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-600 hover:text-slate-400'}`}><CpuIcon size={12} className="inline mr-1" /> Pro</button>
-          </div>
+          {activeTab === 'logic' && (
+            <div className="flex items-center bg-[#050505] p-1 rounded-xl border border-white/5">
+              <button onClick={() => setEditorMode('amateur')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${editorMode === 'amateur' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-600 hover:text-slate-400'}`}><UserIcon size={12} className="inline mr-1" /> Amateur</button>
+              <button onClick={() => setEditorMode('pro')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${editorMode === 'pro' ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-600 hover:text-slate-400'}`}><CpuIcon size={12} className="inline mr-1" /> Pro</button>
+            </div>
+          )}
 
-          {/* Keyword Search */}
           <div className="relative">
             <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
             <input 
               className="w-full bg-[#050505] border border-white/5 rounded-xl py-2 pl-10 pr-4 text-xs text-slate-300 outline-none focus:border-blue-500/50 transition-all"
-              placeholder="Search logic, variables, or elements..."
+              placeholder="Search assets or logic..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -214,32 +305,20 @@ const App: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
           {activeTab === 'logic' ? (
             editorMode === 'amateur' ? (
-              <AmateurLogicView 
-                files={project.files} 
-                searchQuery={searchQuery} 
-                onUpdateValue={handleAmateurUpdate} 
-              />
+              <AmateurLogicView files={project.files} searchQuery={searchQuery} onUpdateValue={handleAmateurUpdate} />
             ) : (
               <div className="space-y-4">
-                <div className="flex items-center gap-2 px-2 mb-2">
-                  <CodeIcon size={12} className="text-slate-500" />
-                  <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Source Explorer</span>
-                </div>
-                {Object.values(project.files).map(file => (
+                {/* Fixed: Explicitly cast Object.values to AppFile[] to resolve 'unknown' type issues */}
+                {(Object.values(project.files) as AppFile[]).map(file => (
                   <div key={file.path} className="group p-4 bg-white/5 border border-white/5 rounded-2xl space-y-3 hover:bg-white/10 transition-all">
                     <div className="flex justify-between items-center">
                       <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">{file.path}</span>
-                      <span className="text-[8px] text-slate-600 font-bold">{file.language}</span>
+                      <span className="text-[8px] text-slate-600 font-bold uppercase">{file.language}</span>
                     </div>
                     <textarea 
                       className="w-full h-32 bg-black/40 p-3 rounded-xl text-[11px] font-mono text-slate-400 outline-none resize-none border border-transparent focus:border-blue-500/30"
                       value={file.content}
-                      onChange={(e) => {
-                        setProject(prev => ({
-                          ...prev,
-                          files: { ...prev.files, [file.path]: { ...file, content: e.target.value, lastModified: Date.now() } }
-                        }));
-                      }}
+                      onChange={(e) => updateFileDirectly(file.path, e.target.value)}
                     />
                   </div>
                 ))}
@@ -247,7 +326,7 @@ const App: React.FC = () => {
             )
           ) : activeTab === 'screens' ? (
             <div className="space-y-2">
-              <button onClick={() => handleSendMessage('Add a new navigation screen for profiles.')} className="w-full py-4 border-2 border-dashed border-white/10 bg-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-blue-400 hover:bg-blue-600/10 hover:border-blue-500/30 transition-all mb-4 group"><PlusIcon size={16} /> New Screen</button>
+              <button onClick={addScreen} className="w-full py-4 border-2 border-dashed border-white/10 bg-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-blue-400 hover:bg-blue-600/10 hover:border-blue-500/30 transition-all mb-4 group"><PlusIcon size={16} /> Add New Screen</button>
               {Object.keys(project.files).filter(p => p.endsWith('.html')).map(p => (
                 <button key={p} onClick={() => setActiveFile(p)} className={`w-full text-left px-5 py-4 rounded-2xl flex items-center justify-between transition-all group ${activeFile === p ? 'bg-blue-600 text-white shadow-xl' : 'bg-white/5 border border-white/5 text-slate-500 hover:text-slate-300'}`}>
                   <div className="flex items-center gap-4">
@@ -257,10 +336,16 @@ const App: React.FC = () => {
                 </button>
               ))}
             </div>
+          ) : activeTab === 'firebase' ? (
+            <FirebasePanel project={project} onUpdateProject={(u) => setProject(p => ({ ...p, ...u }))} />
+          ) : activeTab === 'versions' ? (
+            <VersionsPanel project={project} onRollback={handleRollback} />
+          ) : activeTab === 'build' ? (
+            <BuildPanel project={project} onUpdateProject={(u) => setProject(p => ({ ...p, ...u }))} />
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-20 p-8">
                <InfoIcon size={40} className="mb-4" />
-               <p className="text-[10px] font-black uppercase tracking-widest">Select a tab to begin orchestration.</p>
+               <p className="text-[10px] font-black uppercase tracking-widest">Select a toolkit.</p>
             </div>
           )}
         </div>
@@ -293,7 +378,7 @@ const App: React.FC = () => {
           {isPreviewLoading && (
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm z-[100] flex flex-col items-center justify-center gap-6">
                <Loader2Icon size={48} className="animate-spin text-blue-500" />
-               <p className="text-[11px] font-black uppercase text-blue-400 tracking-[0.4em]">Rendering Repositories</p>
+               <p className="text-[11px] font-black uppercase text-blue-400 tracking-[0.4em]">Rendering Native Artifacts</p>
             </div>
           )}
           
@@ -302,7 +387,7 @@ const App: React.FC = () => {
             activeFile={activeFile}
             onSelectScreen={setActiveFile}
             mode={mode}
-            onInteract={(el) => { if (mode === 'build') { setSelectedElement(el); setSidebarOpen(true); } }}
+            onInteract={(el) => { if (mode === 'build') { setSelectedElement(el); setSidebarOpen(true); setActiveTab('logic'); } }}
             selectedElementId={selectedElement?.id}
             screenPositions={project.screenPositions || {}}
             onUpdatePosition={(path, pos) => setProject(prev => ({ ...prev, screenPositions: { ...prev.screenPositions, [path]: pos } }))}
@@ -331,7 +416,7 @@ const App: React.FC = () => {
             {messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-20">
                 <div className="w-24 h-24 bg-white/5 rounded-[2rem] flex items-center justify-center mb-6"><MessageSquareIcon size={40} /></div>
-                <p className="text-[11px] font-black uppercase tracking-[0.3em] leading-relaxed">Ready to materialize your vision.</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.3em] leading-relaxed">System Ready. Command UI logic or structural shifts.</p>
               </div>
             )}
             {messages.map((m) => (
@@ -348,7 +433,7 @@ const App: React.FC = () => {
             {isProcessing && (
               <div className="flex items-center gap-4 p-4 text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">
                 <Loader2Icon size={16} className="animate-spin text-blue-500" />
-                Updating Code Base
+                Synthesizing Repo Changes
               </div>
             )}
             <div ref={chatEndRef} />
@@ -387,11 +472,11 @@ const App: React.FC = () => {
                 value={newProjectName} 
                 onChange={e => setNewProjectName(e.target.value)} 
                 className="w-full bg-[#050505] border border-white/10 rounded-3xl p-6 text-xl font-black text-white outline-none focus:border-blue-500 transition-all" 
-                placeholder="Project Name" 
+                placeholder="App Name (e.g. MyFitnessApp)" 
              />
              <div className="flex gap-4">
                 <button onClick={() => setShowNewProjectModal(false)} className="flex-1 py-5 bg-[#1a1a1a] rounded-3xl text-[11px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all">Cancel</button>
-                <button onClick={handleCreateProject} className="flex-1 py-5 bg-blue-600 rounded-3xl text-[11px] font-black uppercase tracking-widest text-white shadow-2xl shadow-blue-900/40 transition-all">Launch</button>
+                <button onClick={handleCreateProject} className="flex-1 py-5 bg-blue-600 rounded-3xl text-[11px] font-black uppercase tracking-widest text-white shadow-2xl shadow-blue-900/40 transition-all">Launch Studio</button>
              </div>
           </div>
         </div>
@@ -402,10 +487,11 @@ const App: React.FC = () => {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-2xl z-[300] flex items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
            <div className="w-full max-w-2xl bg-[#111] border border-white/5 rounded-[3rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
               <div className="p-8 border-b border-white/5 flex justify-between items-center bg-blue-600/5">
-                <h2 className="text-xl font-black uppercase">Studio Directives</h2>
+                <h2 className="text-xl font-black uppercase tracking-widest">Studio Directives</h2>
                 <button onClick={() => setShowInstructionsModal(false)} className="p-4 hover:bg-white/5 rounded-2xl transition-all text-slate-500 hover:text-white"><XIcon size={24} /></button>
               </div>
               <div className="flex-1 overflow-y-auto p-10 space-y-8 custom-scrollbar">
+                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Core Guidelines for the AI Orchestrator</p>
                 <textarea 
                   className="w-full h-80 bg-black/40 border border-white/5 rounded-3xl p-8 text-sm text-slate-300 font-mono outline-none focus:border-blue-500 transition-all resize-none shadow-inner"
                   value={project.persistentInstructions}
