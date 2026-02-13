@@ -34,8 +34,8 @@ const AppCanvas: React.FC<Props> = ({
   onAddConnection,
   onRemoveConnection
 }) => {
-  const [zoom, setZoom] = useState(0.6);
-  const [pan, setPan] = useState({ x: 100, y: 100 });
+  const [zoom, setZoom] = useState(0.5);
+  const [pan, setPan] = useState({ x: 60, y: 60 });
   const [isPanning, setIsPanning] = useState(false);
   const [connectingFrom, setConnectingFrom] = useState<{ screen: string; elementId: string; elementLabel: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; screen: string; element?: UIElementRef } | null>(null);
@@ -213,7 +213,7 @@ const AppCanvas: React.FC<Props> = ({
                 <NativePwaFrame
                   key={`${path}-${version}`}
                   html={files[path]?.content || ''}
-                  js={files['app.js']?.content || ''}
+                  js={(files['app.js']?.content || '') + '\n' + (files[path.replace('.html', '.nav.js')]?.content || '')}
                   mode={isActive ? mode : 'test'}
                   highlightId={isActive ? selectedElementId : null}
                   onInteract={(el) => {
@@ -305,28 +305,28 @@ const AppCanvas: React.FC<Props> = ({
       )}
 
       {/* Canvas HUD Controls */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-[#111]/90 border border-white/10 p-2 rounded-2xl backdrop-blur-xl shadow-2xl z-[100]">
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-[#111]/90 border border-white/10 p-1.5 rounded-xl backdrop-blur-xl shadow-2xl z-[100]">
         <button 
           onClick={() => setZoom(prev => Math.max(0.1, prev - 0.1))}
-          className="p-3 hover:bg-white/5 rounded-xl text-slate-400 transition-all"
-        ><ZoomOutIcon size={18} /></button>
-        <div className="px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest min-w-[80px] text-center">
+          className="p-2 hover:bg-white/5 rounded-lg text-slate-400 transition-all"
+        ><ZoomOutIcon size={14} /></button>
+        <div className="px-3 text-[9px] font-black text-slate-500 uppercase tracking-widest min-w-[60px] text-center">
           {Math.round(zoom * 100)}%
         </div>
         <button 
           onClick={() => setZoom(prev => Math.min(2, prev + 0.1))}
-          className="p-3 hover:bg-white/5 rounded-xl text-slate-400 transition-all"
-        ><ZoomInIcon size={18} /></button>
-        <div className="w-px h-6 bg-white/10 mx-2" />
+          className="p-2 hover:bg-white/5 rounded-lg text-slate-400 transition-all"
+        ><ZoomInIcon size={14} /></button>
+        <div className="w-px h-4 bg-white/10 mx-1" />
         <button 
-          onClick={() => { setPan({ x: 100, y: 100 }); setZoom(0.6); }}
-          className="p-3 hover:bg-white/5 rounded-xl text-slate-400 transition-all"
-        ><MaximizeIcon size={18} /></button>
+          onClick={() => { setPan({ x: 60, y: 60 }); setZoom(0.5); }}
+          className="p-2 hover:bg-white/5 rounded-lg text-slate-400 transition-all"
+        ><MaximizeIcon size={14} /></button>
       </div>
 
       {/* Helper Text */}
-      <div className="absolute top-8 left-1/2 -translate-x-1/2 text-[9px] font-black text-slate-600 uppercase tracking-[0.3em] pointer-events-none">
-        Alt + Drag to Pan • Ctrl + Scroll to Zoom • Right-click elements to connect screens
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 text-[8px] font-black text-slate-600 uppercase tracking-[0.2em] pointer-events-none">
+        Alt + Drag to Pan • Ctrl + Scroll to Zoom • Right-click to connect screens
       </div>
     </div>
   );

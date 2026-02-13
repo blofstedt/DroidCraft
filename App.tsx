@@ -79,6 +79,7 @@ const App: React.FC = () => {
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [mode, setMode] = useState<'build' | 'test'>('build');
   const [selectedElement, setSelectedElement] = useState<UIElementRef | null>(null);
+  const [aiPanelOpen, setAiPanelOpen] = useState(true);
 
   const geminiRef = useRef<GeminiAppService | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -385,24 +386,24 @@ const App: React.FC = () => {
     <div className="flex h-screen bg-[#050505] text-slate-200 overflow-hidden font-sans select-none">
       
       {/* Sidebar Navigation */}
-      <div className="w-16 bg-[#111] border-r border-white/5 flex flex-col items-center py-6 gap-6 z-50 shadow-xl">
-        <button onClick={() => setShowNewProjectModal(true)} className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white hover:scale-110 transition-transform shadow-lg shadow-blue-900/40"><PlusIcon size={20} /></button>
-        <div className="flex flex-col gap-2">
-          <button onClick={() => setActiveTab('logic')} className={`p-3 rounded-xl transition-all ${activeTab === 'logic' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}><BookOpenIcon size={20} /></button>
-          <button onClick={() => setActiveTab('screens')} className={`p-3 rounded-xl transition-all ${activeTab === 'screens' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}><LayersIcon size={20} /></button>
-          <button onClick={() => setActiveTab('connections')} className={`p-3 rounded-xl transition-all ${activeTab === 'connections' ? 'bg-orange-600/20 text-orange-400' : 'text-slate-500 hover:text-slate-300'}`}><LinkIcon size={20} /></button>
-          <button onClick={() => setActiveTab('firebase')} className={`p-3 rounded-xl transition-all ${activeTab === 'firebase' ? 'bg-orange-600/20 text-orange-400' : 'text-slate-500 hover:text-slate-300'}`}><DatabaseIcon size={20} /></button>
-          <button onClick={() => setActiveTab('versions')} className={`p-3 rounded-xl transition-all ${activeTab === 'versions' ? 'bg-purple-600/20 text-purple-400' : 'text-slate-500 hover:text-slate-300'}`}><HistoryIcon size={20} /></button>
-          <button onClick={() => setActiveTab('build')} className={`p-3 rounded-xl transition-all ${activeTab === 'build' ? 'bg-emerald-600/20 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}><SmartphoneIcon size={20} /></button>
+      <div className="w-12 bg-[#111] border-r border-white/5 flex flex-col items-center py-4 gap-4 z-50 shadow-xl">
+        <button onClick={() => setShowNewProjectModal(true)} className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white hover:scale-110 transition-transform shadow-lg shadow-blue-900/40"><PlusIcon size={16} /></button>
+        <div className="flex flex-col gap-1">
+          <button onClick={() => setActiveTab('logic')} className={`p-2 rounded-lg transition-all ${activeTab === 'logic' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}><BookOpenIcon size={16} /></button>
+          <button onClick={() => setActiveTab('screens')} className={`p-2 rounded-lg transition-all ${activeTab === 'screens' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}><LayersIcon size={16} /></button>
+          <button onClick={() => setActiveTab('connections')} className={`p-2 rounded-lg transition-all ${activeTab === 'connections' ? 'bg-orange-600/20 text-orange-400' : 'text-slate-500 hover:text-slate-300'}`}><LinkIcon size={16} /></button>
+          <button onClick={() => setActiveTab('firebase')} className={`p-2 rounded-lg transition-all ${activeTab === 'firebase' ? 'bg-orange-600/20 text-orange-400' : 'text-slate-500 hover:text-slate-300'}`}><DatabaseIcon size={16} /></button>
+          <button onClick={() => setActiveTab('versions')} className={`p-2 rounded-lg transition-all ${activeTab === 'versions' ? 'bg-purple-600/20 text-purple-400' : 'text-slate-500 hover:text-slate-300'}`}><HistoryIcon size={16} /></button>
+          <button onClick={() => setActiveTab('build')} className={`p-2 rounded-lg transition-all ${activeTab === 'build' ? 'bg-emerald-600/20 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}><SmartphoneIcon size={16} /></button>
         </div>
         <div className="mt-auto">
-          <button onClick={() => setShowInstructionsModal(true)} className="p-3 text-slate-500 hover:text-white"><SettingsIcon size={20} /></button>
+          <button onClick={() => setShowInstructionsModal(true)} className="p-2 text-slate-500 hover:text-white"><SettingsIcon size={16} /></button>
         </div>
       </div>
 
       {/* Primary Sidebar Content */}
-      <div className={`${sidebarOpen ? 'w-96' : 'w-0'} bg-[#111]/40 border-r border-white/5 transition-all duration-300 flex flex-col overflow-hidden relative`}>
-        <div className="p-6 border-b border-white/5 bg-black/20 space-y-4">
+      <div className={`${sidebarOpen ? 'w-72' : 'w-0'} bg-[#111]/40 border-r border-white/5 transition-all duration-300 flex flex-col overflow-hidden relative`}>
+        <div className="p-4 border-b border-white/5 bg-black/20 space-y-3">
           <div className="flex justify-between items-center">
             <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] leading-none">{activeTab}</h2>
             <button onClick={() => setSidebarOpen(false)} className="p-1.5 hover:bg-white/5 rounded-lg text-slate-500 transition-all"><ChevronRightIcon size={14} className="rotate-180" /></button>
@@ -482,25 +483,26 @@ const App: React.FC = () => {
       </div>
 
       {/* Main Workspace (Canvas Engine) */}
-      <div className="flex-1 flex flex-col relative bg-[#050505]">
-        <div className="h-16 bg-[#111]/80 flex items-center px-8 border-b border-white/5 justify-between z-40 backdrop-blur-xl">
-          <div className="flex items-center gap-6">
-            {!sidebarOpen && <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-white/5 rounded-xl text-slate-500 transition-all"><MenuIcon size={20} /></button>}
-            <div className="flex items-center gap-3">
-               <div className="w-8 h-8 bg-blue-600/10 rounded-lg flex items-center justify-center border border-blue-600/30"><SmartphoneIcon size={16} className="text-blue-500" /></div>
+      <div className="flex-1 flex flex-col relative bg-[#050505] min-w-0">
+        <div className="h-11 bg-[#111]/80 flex items-center px-4 border-b border-white/5 justify-between z-40 backdrop-blur-xl shrink-0">
+          <div className="flex items-center gap-4">
+            {!sidebarOpen && <button onClick={() => setSidebarOpen(true)} className="p-1.5 hover:bg-white/5 rounded-lg text-slate-500 transition-all"><MenuIcon size={16} /></button>}
+            <div className="flex items-center gap-2">
+               <div className="w-6 h-6 bg-blue-600/10 rounded-md flex items-center justify-center border border-blue-600/30"><SmartphoneIcon size={12} className="text-blue-500" /></div>
                <div className="flex flex-col">
                  <span className="text-[10px] font-black text-white uppercase tracking-widest">{project.name}</span>
-                 <span className="text-[9px] text-slate-600 font-bold uppercase">{activeFile}</span>
+                 <span className="text-[8px] text-slate-600 font-bold uppercase">{activeFile}</span>
                </div>
             </div>
           </div>
           
-          <div className="flex items-center gap-6">
-            <div className="flex items-center bg-[#080808] rounded-2xl p-1.5 border border-white/5 shadow-inner">
-               <button onClick={() => setMode('build')} className={`flex items-center gap-2 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'build' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}><MousePointer2Icon size={14} /> Design</button>
-               <button onClick={() => setMode('test')} className={`flex items-center gap-2 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'test' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}><EyeIcon size={14} /> Play</button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center bg-[#080808] rounded-xl p-1 border border-white/5 shadow-inner">
+               <button onClick={() => setMode('build')} className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${mode === 'build' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}><MousePointer2Icon size={12} /> Design</button>
+               <button onClick={() => setMode('test')} className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${mode === 'test' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}><EyeIcon size={12} /> Play</button>
             </div>
-            <button onClick={() => setIsPreviewLoading(true)} className="p-2.5 hover:bg-white/5 rounded-xl text-slate-500 transition-all hover:text-white"><RefreshCwIcon size={18} className={isPreviewLoading ? 'animate-spin' : ''} /></button>
+            <button onClick={() => setIsPreviewLoading(true)} className="p-1.5 hover:bg-white/5 rounded-lg text-slate-500 transition-all hover:text-white"><RefreshCwIcon size={14} className={isPreviewLoading ? 'animate-spin' : ''} /></button>
+            <button onClick={() => setAiPanelOpen(prev => !prev)} aria-label="Toggle AI Orchestrator panel" className={`p-1.5 rounded-lg transition-all ${aiPanelOpen ? 'bg-blue-600/20 text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}><SparklesIcon size={14} /></button>
           </div>
         </div>
 
@@ -530,31 +532,31 @@ const App: React.FC = () => {
       </div>
 
       {/* Right AI Orchestration Panel */}
-      <div className="w-96 bg-[#111] border-l border-white/5 flex flex-col z-20 shadow-[-40px_0_80px_rgba(0,0,0,0.6)]">
-         <div className="p-8 border-b border-white/5 flex items-center justify-between bg-black/10">
-           <div className="flex items-center gap-4">
-             <div className="w-12 h-12 bg-blue-600/10 rounded-2xl flex items-center justify-center border border-blue-600/30 shadow-inner"><SparklesIcon size={24} className="text-blue-500" /></div>
+      <div className={`${aiPanelOpen ? 'w-80' : 'w-0'} bg-[#111] border-l border-white/5 flex flex-col z-20 shadow-[-40px_0_80px_rgba(0,0,0,0.6)] transition-all duration-300 overflow-hidden`}>
+         <div className="p-4 border-b border-white/5 flex items-center justify-between bg-black/10">
+           <div className="flex items-center gap-3">
+             <div className="w-8 h-8 bg-blue-600/10 rounded-xl flex items-center justify-center border border-blue-600/30 shadow-inner"><SparklesIcon size={16} className="text-blue-500" /></div>
              <div>
-               <h3 className="text-sm font-black text-white tracking-wide uppercase leading-none mb-1">Orchestrator</h3>
-               <div className="flex items-center gap-2">
+               <h3 className="text-xs font-black text-white tracking-wide uppercase leading-none mb-0.5">Orchestrator</h3>
+               <div className="flex items-center gap-1.5">
                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                 <p className="text-[9px] text-emerald-500 uppercase tracking-[0.2em] font-black">Online</p>
+                 <p className="text-[8px] text-emerald-500 uppercase tracking-[0.2em] font-black">Online</p>
                </div>
              </div>
            </div>
-           <button onClick={() => setMessages([])} className="p-2 text-slate-600 hover:text-white transition-colors"><RotateCcwIcon size={16} /></button>
+           <button onClick={() => setMessages([])} className="p-1.5 text-slate-600 hover:text-white transition-colors"><RotateCcwIcon size={14} /></button>
          </div>
 
-         <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-[#050505]/30 custom-scrollbar">
+         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#050505]/30 custom-scrollbar">
             {messages.length === 0 && (
-              <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-20">
-                <div className="w-24 h-24 bg-white/5 rounded-[2rem] flex items-center justify-center mb-6"><MessageSquareIcon size={40} /></div>
-                <p className="text-[11px] font-black uppercase tracking-[0.3em] leading-relaxed">System Ready. Command UI logic or structural shifts.</p>
+              <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-20">
+                <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-4"><MessageSquareIcon size={28} /></div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] leading-relaxed">System Ready. Command UI logic or structural shifts.</p>
               </div>
             )}
             {messages.map((m) => (
               <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} animate-in slide-in-from-bottom-2`}>
-                <div className={`max-w-[90%] p-5 rounded-[1.8rem] text-[12px] shadow-2xl leading-relaxed ${
+                <div className={`max-w-[90%] p-3 rounded-2xl text-[11px] shadow-lg leading-relaxed ${
                   m.role === 'user' 
                   ? 'bg-blue-600 text-white rounded-br-none' 
                   : 'bg-[#1a1a1a] text-slate-300 border border-white/5 rounded-bl-none'
@@ -564,20 +566,20 @@ const App: React.FC = () => {
               </div>
             ))}
             {isProcessing && (
-              <div className="flex items-center gap-4 p-4 text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">
-                <Loader2Icon size={16} className="animate-spin text-blue-500" />
+              <div className="flex items-center gap-3 p-3 text-slate-500 text-[9px] font-black uppercase tracking-[0.2em]">
+                <Loader2Icon size={14} className="animate-spin text-blue-500" />
                 Synthesizing Repo Changes
               </div>
             )}
             <div ref={chatEndRef} />
          </div>
 
-         <div className="p-8 bg-[#111] border-t border-white/5 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
+         <div className="p-4 bg-[#111] border-t border-white/5 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
             <div className="relative">
               <textarea 
-                rows={3} 
+                rows={2} 
                 placeholder="Talk to the orchestrator..." 
-                className="w-full bg-[#050505] border border-white/5 focus:border-blue-500/50 rounded-3xl p-6 pr-14 text-xs text-slate-300 outline-none transition-all shadow-inner resize-none overflow-auto" 
+                className="w-full bg-[#050505] border border-white/5 focus:border-blue-500/50 rounded-2xl p-3 pr-12 text-[11px] text-slate-300 outline-none transition-all shadow-inner resize-none overflow-auto" 
                 value={userInput} 
                 onChange={e => setUserInput(e.target.value)} 
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} 
@@ -585,9 +587,9 @@ const App: React.FC = () => {
               <button 
                 onClick={() => handleSendMessage()} 
                 disabled={isProcessing || !userInput.trim()} 
-                className="absolute bottom-6 right-6 p-3 bg-blue-600 text-white rounded-2xl hover:bg-blue-500 transition-all shadow-xl shadow-blue-900/40"
+                className="absolute bottom-3 right-3 p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all shadow-lg shadow-blue-900/40"
               >
-                <ChevronRightIcon size={20} />
+                <ChevronRightIcon size={16} />
               </button>
             </div>
          </div>
