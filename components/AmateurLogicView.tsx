@@ -1,115 +1,231 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { AppFile } from '../types';
-import { SearchIcon, Edit3Icon, HashIcon, ChevronRightIcon, InfoIcon } from 'lucide-react';
+import { InfoIcon, SparklesIcon, ChevronRightIcon, TypeIcon, PaletteIcon, LayoutIcon, Edit3Icon } from 'lucide-react';
 
 interface Props {
   files: Record<string, AppFile>;
+  activeFile: string;
   searchQuery: string;
   onUpdateValue: (path: string, originalText: string, newText: string) => void;
 }
 
-const AmateurLogicView: React.FC<Props> = ({ files, searchQuery, onUpdateValue }) => {
-  // Simple heuristic-based parser for "Amateur Mode"
-  // In a real app, this would use a more robust AST to natural language mapper
-  const getLogicNodes = (file: AppFile) => {
-    const lines = file.content.split('\n');
-    const nodes: { label: string, value: string, type: string, originalLine: string }[] = [];
+// Helper to translate Tailwind to English
+const describeClass = (cls: string): string => {
+  // Simple mappings
+  if (cls.startsWith('bg-')) {
+    const parts = cls.split('-');
+    return `${parts[1]} background${parts[2] ? ` (shade ${parts[2]})` : ''}`;
+  }
+  if (cls.startsWith('text-')) {
+    const parts = cls.split('-');
+    if (['sm', 'xs', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl'].includes(parts[1])) return `${parts[1]} sized text`;
+    return `${parts[1]} colored text`;
+  }
+  if (cls === 'w-full') return 'full width';
+  if (cls.startsWith('w-')) {
+    const part = cls.split('-')[1];
+    if (part.includes('/')) {
+      const [n, d] = part.split('/');
+      return `${Math.round((parseInt(n) / parseInt(d)) * 100)}% width`;
+    }
+    return `${part} units wide`;
+  }
+  if (cls === 'rounded-full') return 'circular corners';
+  if (cls.startsWith('rounded')) return 'rounded corners';
+  if (cls === 'flex') return 'layout container';
+  if (cls === 'items-center') return 'vertically centered content';
+  if (cls === 'justify-center') return 'horizontally centered content';
+  if (cls === 'p-') return 'padded';
+  if (cls.startsWith('p-')) return `padding of ${cls.split('-')[1]}`;
+  if (cls.startsWith('shadow')) return 'drop shadow effect';
+  
+  return cls; // fallback
+};
 
-    lines.forEach(line => {
-      const trimmed = line.trim();
-      
-      // Match Tailwind Colors
-      if (trimmed.includes('bg-') || trimmed.includes('text-')) {
-        const match = trimmed.match(/(bg|text)-[a-z]+-[0-9]+/);
-        if (match) nodes.push({ label: 'Visual Style', value: match[0], type: 'color', originalLine: line });
+const AmateurLogicView: React.FC<Props> = ({ files, activeFile, searchQuery, onUpdateValue }) => {
+  const file = files[activeFile];
+
+  const logicNodes = useMemo(() => {
+    if (!file || !file.content || !activeFile.endsWith('.html')) return [];
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(file.content, 'text/html');
+    const nodes: any[] = [];
+
+    const traverse = (element: Element, depth = 0) => {
+      // Skip script, style, head
+      if (['SCRIPT', 'STYLE', 'HEAD', 'META', 'LINK'].includes(element.tagName)) return;
+
+      const id = element.id || '';
+      const tag = element.tagName.toLowerCase();
+      const classes = Array.from(element.classList);
+      const text = element.childNodes[0]?.nodeType === 3 ? element.childNodes[0].nodeValue?.trim() : '';
+
+      const nodeDescription = {
+        tag,
+        id,
+        text,
+        classes,
+        depth,
+        elementRef: element,
+        sentences: [] as string[]
+      };
+
+      // Construct the "Novel" sentences
+      if (tag === 'body') {
+        nodeDescription.sentences.push(`The screen begins with a main container.`);
+      } else if (tag === 'header') {
+        nodeDescription.sentences.push(`At the top, there is a navigation header.`);
+      } else if (tag === 'button') {
+        nodeDescription.sentences.push(`Users can click a button.`);
+      } else if (['h1', 'h2', 'h3'].includes(tag)) {
+        nodeDescription.sentences.push(`A prominent heading is displayed.`);
+      } else if (tag === 'p') {
+        nodeDescription.sentences.push(`A paragraph of text provides detail.`);
+      } else if (tag === 'img' || tag === 'svg') {
+        nodeDescription.sentences.push(`A visual image is positioned here.`);
+      } else {
+        nodeDescription.sentences.push(`There is a ${tag} element.`);
       }
 
-      // Match Strings / Titles
-      if (trimmed.includes('<h') || trimmed.includes('<p') || trimmed.includes('title')) {
-        const textMatch = trimmed.match(/>([^<]+)</);
-        if (textMatch && textMatch[1].trim()) {
-          nodes.push({ label: 'Display Text', value: textMatch[1].trim(), type: 'text', originalLine: line });
-        }
-      }
+      nodes.push(nodeDescription);
 
-      // Match Logic
-      if (trimmed.includes('addEventListener') || trimmed.includes('onclick')) {
-        nodes.push({ label: 'User Interaction', value: 'Performs an action when clicked', type: 'logic', originalLine: line });
-      }
-    });
+      Array.from(element.children).forEach(child => traverse(child, depth + 1));
+    };
 
+    if (doc.body) traverse(doc.body);
     return nodes;
-  };
+  }, [file?.content, activeFile]);
+
+  if (!file || !activeFile.endsWith('.html')) {
+    return (
+      <div className="h-64 flex flex-col items-center justify-center text-center p-8 opacity-40">
+        <InfoIcon size={32} className="mb-4 text-slate-500" />
+        <p className="text-[10px] font-black uppercase tracking-widest leading-loose">
+          Amateur mode is optimized for HTML layout screens.<br/>
+          Switch to Pro for direct JS/Logic control.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Fix: Explicitly cast Object.values to AppFile[] to resolve 'unknown' type issues */}
-      {(Object.values(files) as AppFile[]).filter(f => f.path.endsWith('.html') || f.path.endsWith('.js')).map(file => {
-        const nodes = getLogicNodes(file);
-        if (nodes.length === 0) return null;
+    <div className="space-y-8 pb-20 animate-in fade-in slide-in-from-left-4 duration-700">
+      <div className="bg-blue-600/10 border border-blue-500/20 p-6 rounded-[2rem] space-y-2">
+         <div className="flex items-center gap-3 text-blue-400 mb-2">
+            <SparklesIcon size={16} />
+            <h3 className="text-[10px] font-black uppercase tracking-widest">Storyteller View</h3>
+         </div>
+         <p className="text-xs text-slate-400 leading-relaxed font-medium italic">
+           The orchestrator is translating the source code of <span className="text-blue-300 font-bold">{activeFile}</span> into a descriptive story. You can edit the blue highlighted values to change the app.
+         </p>
+      </div>
 
-        return (
-          <div key={file.path} className="space-y-4">
-            <div className="flex items-center gap-2 px-2">
-              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
-              <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest">{file.path} Structure</h4>
-            </div>
-            
-            <div className="space-y-2">
-              {nodes.map((node, i) => {
-                const isMatch = searchQuery && (
-                  node.label.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                  node.value.toLowerCase().includes(searchQuery.toLowerCase())
-                );
+      <div className="space-y-6">
+        {logicNodes.map((node, idx) => {
+          // Filtering logic
+          if (searchQuery && !node.tag.includes(searchQuery) && !node.text.includes(searchQuery) && !node.classes.some(c => c.includes(searchQuery))) {
+            return null;
+          }
 
-                return (
-                  <div 
-                    key={i} 
-                    className={`group p-4 rounded-2xl border transition-all ${
-                      isMatch 
-                      ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.1)]' 
-                      : 'bg-white/5 border-white/5 hover:border-white/10'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${
-                            node.type === 'color' ? 'bg-purple-500/20 text-purple-400' :
-                            node.type === 'logic' ? 'bg-emerald-500/20 text-emerald-400' :
-                            'bg-blue-500/20 text-blue-400'
-                          }`}>
-                            {node.label}
-                          </span>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm text-slate-300 font-medium">
-                            {node.label === 'Visual Style' ? 'The element color is set to' : 
-                             node.label === 'Display Text' ? 'The visible text reads' : 
-                             'Logic rule:'}
-                          </p>
-                          <input 
-                            className="bg-white/5 border border-white/5 rounded px-2 py-0.5 text-blue-400 font-bold outline-none focus:border-blue-500/50 transition-all hover:bg-white/10"
-                            defaultValue={node.value}
-                            onBlur={(e) => {
-                              if (e.target.value !== node.value) {
-                                onUpdateValue(file.path, node.value, e.target.value);
-                              }
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <ChevronRightIcon size={14} className="text-slate-700 group-hover:text-slate-500 mt-1" />
+          return (
+            <div 
+              key={idx} 
+              className="relative group"
+              style={{ marginLeft: `${node.depth * 12}px` }}
+            >
+              {node.depth > 0 && (
+                <div className="absolute -left-4 top-0 bottom-0 w-px bg-white/5 group-hover:bg-blue-500/20 transition-colors" />
+              )}
+              
+              <div className="bg-[#111] border border-white/5 rounded-[2rem] p-6 hover:border-blue-500/30 transition-all hover:shadow-2xl hover:shadow-blue-900/10 group">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-slate-800 rounded-xl text-slate-500 group-hover:text-blue-400 transition-colors">
+                      {node.tag === 'button' ? <Edit3Icon size={14} /> : 
+                       ['h1', 'h2', 'p'].includes(node.tag) ? <TypeIcon size={14} /> : 
+                       <LayoutIcon size={14} />}
                     </div>
+                    <span className="text-[9px] font-black uppercase text-slate-600 tracking-[0.2em]">{node.tag}</span>
                   </div>
-                );
-              })}
+                  {node.id && <span className="text-[8px] font-mono text-slate-700">#{node.id}</span>}
+                </div>
+
+                <div className="space-y-3">
+                  {/* Main Description Sentence */}
+                  <p className="text-xs text-slate-400 leading-loose">
+                    {node.sentences[0]}
+                    {node.text && (
+                      <> It currently displays the text "
+                        <span 
+                          contentEditable 
+                          suppressContentEditableWarning
+                          onBlur={(e) => {
+                            const newText = e.currentTarget.innerText;
+                            if (newText !== node.text) onUpdateValue(activeFile, node.text, newText);
+                          }}
+                          className="inline-block px-1.5 py-0.5 bg-blue-600/10 text-blue-400 border-b border-blue-500/40 rounded cursor-text hover:bg-blue-600/20 transition-all font-bold"
+                        >
+                          {node.text}
+                        </span>
+                        ".
+                      </>
+                    )}
+                  </p>
+
+                  {/* Attributes/Classes Breakdown */}
+                  {node.classes.length > 0 && (
+                    <div className="pt-2 flex flex-wrap gap-2 items-center">
+                      <span className="text-[9px] font-black uppercase text-slate-600 mr-1">Appears with:</span>
+                      {node.classes.map((cls: string, cIdx: number) => {
+                        const description = describeClass(cls);
+                        return (
+                          <div key={cIdx} className="group/cls flex items-center">
+                            <span 
+                              contentEditable 
+                              suppressContentEditableWarning
+                              onBlur={(e) => {
+                                const newVal = e.currentTarget.innerText;
+                                // This is a bit advanced, we try to match the description back or just swap the class
+                                // For simplicity in this UI, we just swap the raw class string if changed
+                                if (newVal !== cls) onUpdateValue(activeFile, cls, newVal);
+                              }}
+                              title={description}
+                              className="px-2 py-1 bg-white/5 border border-white/5 rounded-lg text-[10px] text-slate-500 font-medium cursor-text hover:border-blue-500/40 hover:text-blue-300 transition-all flex items-center gap-2"
+                            >
+                              <PaletteIcon size={10} className="opacity-40" />
+                              {cls}
+                            </span>
+                            {cIdx < node.classes.length - 1 && <span className="text-slate-800 ml-2">,</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Child Pointer */}
+                  {node.elementRef.children.length > 0 && (
+                    <div className="flex items-center gap-2 pt-2">
+                       <ChevronRightIcon size={12} className="text-slate-700" />
+                       <span className="text-[9px] font-black uppercase text-slate-700 tracking-widest">
+                         Contains {node.elementRef.children.length} nested item{node.elementRef.children.length > 1 ? 's' : ''}
+                       </span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+
+      <div className="p-8 text-center space-y-4">
+         <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-white/5">
+            <SparklesIcon size={20} className="text-blue-500 opacity-40" />
+         </div>
+         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-600">End of Page Narrative</p>
+      </div>
     </div>
   );
 };

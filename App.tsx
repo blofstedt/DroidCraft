@@ -305,10 +305,9 @@ const App: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
           {activeTab === 'logic' ? (
             editorMode === 'amateur' ? (
-              <AmateurLogicView files={project.files} searchQuery={searchQuery} onUpdateValue={handleAmateurUpdate} />
+              <AmateurLogicView files={project.files} activeFile={activeFile} searchQuery={searchQuery} onUpdateValue={handleAmateurUpdate} />
             ) : (
               <div className="space-y-4">
-                {/* Fixed: Explicitly cast Object.values to AppFile[] to resolve 'unknown' type issues */}
                 {(Object.values(project.files) as AppFile[]).map(file => (
                   <div key={file.path} className="group p-4 bg-white/5 border border-white/5 rounded-2xl space-y-3 hover:bg-white/10 transition-all">
                     <div className="flex justify-between items-center">
