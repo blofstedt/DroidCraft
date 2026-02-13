@@ -1,3 +1,4 @@
+
 export interface AppFile {
   path: string;
   content: string;
@@ -24,7 +25,7 @@ export interface FirebaseState {
   user: FirebaseUser | null;
   collections: FirebaseCollection[];
   lastSyncTimestamp?: number;
-  clientId?: string; // New: User-configurable Google Client ID
+  clientId?: string;
 }
 
 export interface FirebaseUser {
@@ -93,4 +94,5 @@ export interface UIElementRef {
     width: number;
     height: number;
   };
+  computedStyles: Record<string, string>;
 }
