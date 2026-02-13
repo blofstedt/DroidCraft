@@ -1,0 +1,8 @@
+{
+  "name": "DroidCraft: AI Studio",
+  "description": "A professional-grade AI-powered Android development studio. Design, code, and build real Android applications with deep Gemini integration, full repository management, and Firebase connectivity.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
