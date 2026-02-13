@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ProjectState, AppFile, ChatMessage, ScreenPosition, UIElementRef, HistoryEntry } from './types';
+import { ProjectState, AppFile, ChatMessage, ScreenPosition, UIElementRef, HistoryEntry, NavigationConnection } from './types';
 import { getInitialPwaProject } from './utils/projectTemplates';
 import { GeminiAppService, GeminiUpdateResponse } from './services/geminiService';
 import AppCanvas from './components/AppCanvas';
@@ -8,6 +8,7 @@ import AmateurLogicView from './components/AmateurLogicView';
 import BuildPanel from './components/BuildPanel';
 import FirebasePanel from './components/FirebasePanel';
 import VersionsPanel from './components/VersionsPanel';
+import ConnectionsPanel from './components/ConnectionsPanel';
 import { 
   CodeIcon, 
   MessageSquareIcon, 
@@ -31,7 +32,8 @@ import {
   RotateCcwIcon,
   DatabaseIcon,
   XIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  LinkIcon
 } from 'lucide-react';
 
 const STORAGE_KEY = 'droidcraft_projects_v6';
@@ -57,7 +59,8 @@ const App: React.FC = () => {
       history: [],
       persistentInstructions: DEFAULT_INSTRUCTIONS,
       firebase: { config: null, status: 'disconnected', user: null, collections: [], clientId: '' },
-      screenPositions: {}
+      screenPositions: {},
+      connections: []
     };
   });
 
@@ -70,7 +73,7 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'screens' | 'logic' | 'firebase' | 'versions' | 'build'>('logic');
+  const [activeTab, setActiveTab] = useState<'screens' | 'logic' | 'firebase' | 'versions' | 'build' | 'connections'>('logic');
   const [editorMode, setEditorMode] = useState<'pro' | 'amateur'>('amateur');
   
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -123,7 +126,8 @@ const App: React.FC = () => {
       history: [], 
       persistentInstructions: DEFAULT_INSTRUCTIONS, 
       firebase: { config: null, status: 'disconnected', user: null, collections: [], clientId: '' },
-      screenPositions: {}
+      screenPositions: {},
+      connections: []
     };
     newProject.history = recordHistory('Project initialized', 'system', initialFiles);
     setProject(newProject);
@@ -166,9 +170,28 @@ const App: React.FC = () => {
         result.newFiles?.forEach((f) => { newFiles[f.path] = { ...f, lastModified: Date.now() } as AppFile; });
         result.deleteFiles?.forEach((path: string) => { delete newFiles[path]; });
         
+        // Apply backend updates from AI (auto-create/edit Firebase collections)
+        let updatedFirebase = prev.firebase;
+        if (result.backendUpdates?.collections && updatedFirebase?.config) {
+          const existingCollections = [...(updatedFirebase.collections || [])];
+          result.backendUpdates.collections.forEach((col: { name: string; schema: any; rules?: string }) => {
+            const existingIdx = existingCollections.findIndex(c => c.name === col.name);
+            if (existingIdx >= 0) {
+              existingCollections[existingIdx] = {
+                ...existingCollections[existingIdx],
+                schema: { ...existingCollections[existingIdx].schema, ...col.schema }
+              };
+            } else {
+              existingCollections.push({ name: col.name, schema: col.schema, recordCount: 0 });
+            }
+          });
+          updatedFirebase = { ...updatedFirebase, collections: existingCollections };
+        }
+
         return { 
           ...prev, 
           files: newFiles, 
+          firebase: updatedFirebase,
           version: prev.version + 1, 
           history: recordHistory(result.explanation || 'AI Orchestration Update', 'ai', newFiles)
         };
@@ -258,6 +281,106 @@ const App: React.FC = () => {
     }));
   };
 
+  const generateNavigationCode = (connections: NavigationConnection[]): string => {
+    if (connections.length === 0) return '';
+    const handlers = connections.map(conn => {
+      const escapedId = conn.fromElementId.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const escapedLabel = conn.fromElementLabel.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const escapedToScreen = conn.toScreen.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      return `
+// Navigation: ${escapedLabel} -> ${escapedToScreen}
+(function() {
+  var el = document.getElementById('${escapedId}') || document.querySelector('.${escapedId}');
+  if (el) {
+    el.addEventListener('click', function(e) {
+      e.preventDefault();
+      window.location.href = '${escapedToScreen}';
+    });
+  }
+})();`;
+    }).join('\n');
+
+    return `\n// === Auto-generated Navigation (DroidCraft Studio) ===\n${handlers}\n// === End Navigation ===\n`;
+  };
+
+  const handleAddConnection = (connection: NavigationConnection) => {
+    setProject(prev => {
+      const existingConnections = prev.connections || [];
+      // Prevent duplicate connections
+      const isDuplicate = existingConnections.some(
+        c => c.fromScreen === connection.fromScreen && 
+             c.fromElementId === connection.fromElementId && 
+             c.toScreen === connection.toScreen
+      );
+      if (isDuplicate) return prev;
+
+      const newConnections = [...existingConnections, connection];
+      
+      // Generate and inject navigation code into the source screen
+      const screenConnections = newConnections.filter(c => c.fromScreen === connection.fromScreen);
+      const navCode = generateNavigationCode(screenConnections);
+      const newFiles = { ...prev.files };
+      
+      // Find or create the JS for the screen's navigation
+      const jsPath = connection.fromScreen.replace('.html', '.nav.js');
+      newFiles[jsPath] = {
+        path: jsPath,
+        content: navCode,
+        language: 'javascript',
+        lastModified: Date.now()
+      };
+
+      return {
+        ...prev,
+        connections: newConnections,
+        files: newFiles,
+        version: prev.version + 1,
+        history: recordHistory(
+          `Connected ${connection.fromElementLabel} in ${connection.fromScreen} → ${connection.toScreen}`,
+          'user',
+          newFiles
+        )
+      };
+    });
+  };
+
+  const handleRemoveConnection = (connectionId: string) => {
+    setProject(prev => {
+      const existingConnections = prev.connections || [];
+      const removedConnection = existingConnections.find(c => c.id === connectionId);
+      const newConnections = existingConnections.filter(c => c.id !== connectionId);
+      const newFiles = { ...prev.files };
+
+      // Regenerate nav code for the affected screen
+      if (removedConnection) {
+        const screenConnections = newConnections.filter(c => c.fromScreen === removedConnection.fromScreen);
+        const jsPath = removedConnection.fromScreen.replace('.html', '.nav.js');
+        if (screenConnections.length === 0) {
+          delete newFiles[jsPath];
+        } else {
+          newFiles[jsPath] = {
+            path: jsPath,
+            content: generateNavigationCode(screenConnections),
+            language: 'javascript',
+            lastModified: Date.now()
+          };
+        }
+      }
+
+      return {
+        ...prev,
+        connections: newConnections,
+        files: newFiles,
+        version: prev.version + 1,
+        history: recordHistory(
+          `Removed connection${removedConnection ? ` from ${removedConnection.fromScreen}` : ''}`,
+          'user',
+          newFiles
+        )
+      };
+    });
+  };
+
   return (
     <div className="flex h-screen bg-[#050505] text-slate-200 overflow-hidden font-sans select-none">
       
@@ -267,6 +390,7 @@ const App: React.FC = () => {
         <div className="flex flex-col gap-2">
           <button onClick={() => setActiveTab('logic')} className={`p-3 rounded-xl transition-all ${activeTab === 'logic' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}><BookOpenIcon size={20} /></button>
           <button onClick={() => setActiveTab('screens')} className={`p-3 rounded-xl transition-all ${activeTab === 'screens' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}><LayersIcon size={20} /></button>
+          <button onClick={() => setActiveTab('connections')} className={`p-3 rounded-xl transition-all ${activeTab === 'connections' ? 'bg-orange-600/20 text-orange-400' : 'text-slate-500 hover:text-slate-300'}`}><LinkIcon size={20} /></button>
           <button onClick={() => setActiveTab('firebase')} className={`p-3 rounded-xl transition-all ${activeTab === 'firebase' ? 'bg-orange-600/20 text-orange-400' : 'text-slate-500 hover:text-slate-300'}`}><DatabaseIcon size={20} /></button>
           <button onClick={() => setActiveTab('versions')} className={`p-3 rounded-xl transition-all ${activeTab === 'versions' ? 'bg-purple-600/20 text-purple-400' : 'text-slate-500 hover:text-slate-300'}`}><HistoryIcon size={20} /></button>
           <button onClick={() => setActiveTab('build')} className={`p-3 rounded-xl transition-all ${activeTab === 'build' ? 'bg-emerald-600/20 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}><SmartphoneIcon size={20} /></button>
@@ -337,6 +461,13 @@ const App: React.FC = () => {
             </div>
           ) : activeTab === 'firebase' ? (
             <FirebasePanel project={project} onUpdateProject={(u) => setProject(p => ({ ...p, ...u }))} />
+          ) : activeTab === 'connections' ? (
+            <ConnectionsPanel 
+              connections={project.connections || []} 
+              htmlFiles={Object.keys(project.files).filter(f => f.endsWith('.html'))}
+              onRemoveConnection={handleRemoveConnection}
+              activeFile={activeFile}
+            />
           ) : activeTab === 'versions' ? (
             <VersionsPanel project={project} onRollback={handleRollback} />
           ) : activeTab === 'build' ? (
@@ -391,6 +522,9 @@ const App: React.FC = () => {
             screenPositions={project.screenPositions || {}}
             onUpdatePosition={(path, pos) => setProject(prev => ({ ...prev, screenPositions: { ...prev.screenPositions, [path]: pos } }))}
             version={project.version}
+            connections={project.connections || []}
+            onAddConnection={handleAddConnection}
+            onRemoveConnection={handleRemoveConnection}
           />
         </div>
       </div>

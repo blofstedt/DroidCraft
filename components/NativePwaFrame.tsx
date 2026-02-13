@@ -8,9 +8,10 @@ interface Props {
   mode: 'build' | 'test';
   highlightId?: string | null;
   onInteract: (element: UIElementRef, event: any) => void;
+  onRightClick?: (element: UIElementRef) => void;
 }
 
-const NativePwaFrame: React.FC<Props> = ({ html, js, mode, highlightId, onInteract }) => {
+const NativePwaFrame: React.FC<Props> = ({ html, js, mode, highlightId, onInteract, onRightClick }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -18,11 +19,14 @@ const NativePwaFrame: React.FC<Props> = ({ html, js, mode, highlightId, onIntera
       if (event.data?.type === 'STUDIO_INTERACT') {
         onInteract(event.data.element, event);
       }
+      if (event.data?.type === 'STUDIO_RIGHTCLICK' && onRightClick) {
+        onRightClick(event.data.element);
+      }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [onInteract]);
+  }, [onInteract, onRightClick]);
 
   useEffect(() => {
     if (iframeRef.current?.contentWindow) {
@@ -124,6 +128,29 @@ const NativePwaFrame: React.FC<Props> = ({ html, js, mode, highlightId, onIntera
             };
             
             window.parent.postMessage({ type: 'STUDIO_INTERACT', element: data }, '*');
+          }
+        }, true);
+
+        document.addEventListener('contextmenu', (e) => {
+          if (currentMode === 'build') {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const el = e.target;
+            const b = el.getBoundingClientRect();
+            const styles = window.getComputedStyle(el);
+            
+            const data = {
+              id: el.id || el.className.split(' ')[0] || el.tagName.toLowerCase() + '-' + Math.random().toString(36).substr(2, 5),
+              tagName: el.tagName,
+              text: el.innerText?.substring(0, 100),
+              className: el.className,
+              rect: { top: b.top, left: b.left, width: b.width, height: b.height },
+              computedStyles: {},
+              attributes: {}
+            };
+            
+            window.parent.postMessage({ type: 'STUDIO_RIGHTCLICK', element: data }, '*');
           }
         }, true);
       </script>
