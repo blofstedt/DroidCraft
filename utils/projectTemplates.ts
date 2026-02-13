@@ -99,9 +99,12 @@ document.getElementById('main-btn')?.addEventListener('click', function() {
     
     main.appendChild(features);
     
-    document.getElementById('back-btn')?.addEventListener('click', function() {
-        features.remove();
-        if (welcomeCard) welcomeCard.style.display = '';
+    // Use event delegation on features container to avoid listener leaks
+    features.addEventListener('click', function(e) {
+        if (e.target && e.target.id === 'back-btn') {
+            features.remove();
+            if (welcomeCard) welcomeCard.style.display = '';
+        }
     });
 });
 

@@ -502,7 +502,7 @@ const App: React.FC = () => {
                <button onClick={() => setMode('test')} className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${mode === 'test' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}><EyeIcon size={12} /> Play</button>
             </div>
             <button onClick={() => setIsPreviewLoading(true)} className="p-1.5 hover:bg-white/5 rounded-lg text-slate-500 transition-all hover:text-white"><RefreshCwIcon size={14} className={isPreviewLoading ? 'animate-spin' : ''} /></button>
-            <button onClick={() => setAiPanelOpen(prev => !prev)} className={`p-1.5 rounded-lg transition-all ${aiPanelOpen ? 'bg-blue-600/20 text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}><SparklesIcon size={14} /></button>
+            <button onClick={() => setAiPanelOpen(prev => !prev)} aria-label="Toggle AI Orchestrator panel" className={`p-1.5 rounded-lg transition-all ${aiPanelOpen ? 'bg-blue-600/20 text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}><SparklesIcon size={14} /></button>
           </div>
         </div>
 
