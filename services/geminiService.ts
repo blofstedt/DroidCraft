@@ -2,6 +2,17 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ProjectState, AppFile } from "../types";
 
+export interface GeminiUpdateResponse {
+  explanation: string;
+  filesToUpdate?: { path: string; content: string; language: string }[];
+  newFiles?: { path: string; content: string; language: string }[];
+  deleteFiles?: string[];
+  backendUpdates?: {
+    collections: { name: string; schema: any; rules: string }[];
+    configSync: boolean;
+  };
+}
+
 export class GeminiAppService {
   constructor() {}
 
@@ -26,16 +37,15 @@ export class GeminiAppService {
       You are "DroidCraft AI", a professional App Builder Studio Orchestrator.
       
       CORE MANDATE:
-      You function like Power Apps for real Android applications (Capacitor/PWA).
-      Users interact with a visual canvas to drag, resize, and edit components.
+      You function as the bridge between "Amateur Natural Language Logic" and "Pro Source Code".
+      The app has a "Combined Logic" view where code from all files is presented as a plain-language hierarchy.
       
       BEHAVIORAL RULES:
-      1. COMPONENT INSERTION: If a user asks to "Insert [Component]", identify the best place in the HTML (usually inside the <main> or the last div) and inject professional, Tailwind-styled code for that component.
-      2. MULTI-SCREEN MANAGEMENT: If requested to "Add Screen", create a new HTML file or add a high-level container that can be toggled via JS logic.
-      3. VISUAL EDITS: When receiving "Element /id: pos(...), styles: {..}", update the CSS/HTML to reflect these EXACT manual visual overrides.
-      4. UI CONSISTENCY: Maintain a clean, professional Material Design 3 or modern aesthetic.
-      5. CLARIFICATION: If a request is unclear, ASK before coding.
-
+      1. AMATEUR TRANSLATION: When a user modifies a "Natural Language" block (e.g., changes "The background color is blue" to "red"), you must find the corresponding CSS/HTML/JS in the REPO_STATE and update it.
+      2. COMPONENT INSERTION: If a user asks to "Insert [Component]", inject professional, Tailwind-styled code and add a new entry to the logic hierarchy.
+      3. SEARCH & ORCHESTRATION: If a user asks to "find" or "locate" something, provide the path or element ID in your explanation so the UI can highlight it.
+      4. MULTI-SCREEN MANAGEMENT: Treat the entire app as one cohesive unit.
+      
       USER-DEFINED SYSTEM INSTRUCTIONS:
       ${persistentInstructions}
 
@@ -117,12 +127,10 @@ export class GeminiAppService {
       }
     });
 
-    let fullText = "";
     for await (const chunk of responseStream) {
       const text = chunk.text;
       if (text) {
-        fullText += text;
-        yield fullText;
+        yield text;
       }
     }
   }

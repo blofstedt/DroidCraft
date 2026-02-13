@@ -6,6 +6,11 @@ export interface AppFile {
   lastModified: number;
 }
 
+export interface ScreenPosition {
+  x: number;
+  y: number;
+}
+
 export interface ProjectState {
   id: string;
   name: string;
@@ -17,6 +22,7 @@ export interface ProjectState {
   envVariables?: Record<string, string>;
   lastSaved?: number;
   persistentInstructions?: string;
+  screenPositions?: Record<string, ScreenPosition>; // Persistent canvas positions
 }
 
 export interface FirebaseState {
@@ -75,6 +81,9 @@ export enum BuildStatus {
   FAILED = 'FAILED'
 }
 
+/**
+ * Interface representing a UI element in the legacy Android XML simulation.
+ */
 export interface UIElement {
   id: string;
   tag: string;
