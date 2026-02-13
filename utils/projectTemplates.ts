@@ -62,19 +62,49 @@ export const getInitialPwaProject = (appName: string, packageName: string): Reco
     'app.js': {
       path: 'app.js',
       language: 'javascript',
-      content: `// Capacitor Native Bridge Integration
-const { Capacitor, Plugins } = window;
-
-document.getElementById('main-btn')?.addEventListener('click', async () => {
-    console.log('Interacting with native layer...');
-    // Simulated Haptic Feedback
-    if (Capacitor?.isNativePlatform()) {
-      // Real native call would go here
+      content: `// App Logic & Navigation
+document.getElementById('main-btn')?.addEventListener('click', function() {
+    var main = document.querySelector('main');
+    if (!main) return;
+    
+    // Toggle between welcome view and features view
+    var featuresView = document.getElementById('features-view');
+    var welcomeCard = document.getElementById('card-welcome');
+    
+    if (featuresView) {
+        featuresView.remove();
+        if (welcomeCard) welcomeCard.style.display = '';
+        return;
     }
-    alert('Capacitor is initialized and ready!');
+    
+    if (welcomeCard) welcomeCard.style.display = 'none';
+    
+    var features = document.createElement('div');
+    features.id = 'features-view';
+    features.className = 'w-full max-w-sm space-y-4 animate-in';
+    features.innerHTML = '<h2 class="text-xl font-black text-slate-800 mb-4">App Features</h2>' +
+        '<div class="bg-white p-4 rounded-2xl shadow border border-slate-100 flex items-center gap-4">' +
+            '<div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-xl">📷</div>' +
+            '<div><p class="font-bold text-slate-800">Camera Access</p><p class="text-xs text-slate-500">Capture photos natively</p></div>' +
+        '</div>' +
+        '<div class="bg-white p-4 rounded-2xl shadow border border-slate-100 flex items-center gap-4">' +
+            '<div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-xl">📍</div>' +
+            '<div><p class="font-bold text-slate-800">GPS Location</p><p class="text-xs text-slate-500">Access device location</p></div>' +
+        '</div>' +
+        '<div class="bg-white p-4 rounded-2xl shadow border border-slate-100 flex items-center gap-4">' +
+            '<div class="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center text-xl">🔔</div>' +
+            '<div><p class="font-bold text-slate-800">Push Notifications</p><p class="text-xs text-slate-500">Engage users with alerts</p></div>' +
+        '</div>' +
+        '<button id="back-btn" class="w-full bg-slate-200 text-slate-700 py-3 rounded-2xl font-bold mt-4 active:scale-95 transition-all">← Back to Home</button>';
+    
+    main.appendChild(features);
+    
+    document.getElementById('back-btn')?.addEventListener('click', function() {
+        features.remove();
+        if (welcomeCard) welcomeCard.style.display = '';
+    });
 });
 
-// App Logic Init
 console.log('DroidCraft App Loaded');`,
       lastModified: Date.now()
     },
