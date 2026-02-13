@@ -284,15 +284,17 @@ const App: React.FC = () => {
   const generateNavigationCode = (connections: NavigationConnection[]): string => {
     if (connections.length === 0) return '';
     const handlers = connections.map(conn => {
-      const escapedId = conn.fromElementId.replace(/'/g, "\\'");
+      const escapedId = conn.fromElementId.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const escapedLabel = conn.fromElementLabel.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const escapedToScreen = conn.toScreen.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       return `
-// Navigation: ${conn.fromElementLabel} -> ${conn.toScreen}
+// Navigation: ${escapedLabel} -> ${escapedToScreen}
 (function() {
   var el = document.getElementById('${escapedId}') || document.querySelector('.${escapedId}');
   if (el) {
     el.addEventListener('click', function(e) {
       e.preventDefault();
-      window.location.href = '${conn.toScreen}';
+      window.location.href = '${escapedToScreen}';
     });
   }
 })();`;
