@@ -33,6 +33,10 @@ export class GeminiAppService {
       ? `CONNECTED_BACKEND: Firestore (Project: ${project.firebase.config.projectId})\nCOLLECTIONS: ${JSON.stringify(project.firebase.collections)}`
       : "BACKEND: Local Only (Not yet connected to Firebase)";
 
+    const connectionsContext = project.connections && project.connections.length > 0
+      ? `NAVIGATION_CONNECTIONS:\n${project.connections.map(c => `  ${c.fromScreen} [${c.fromElementLabel}] --${c.action}--> ${c.toScreen}`).join('\n')}`
+      : "NAVIGATION: No screen connections defined yet";
+
     const systemInstruction = `
       You are "DroidCraft AI", a professional App Builder Studio Orchestrator.
       
@@ -45,6 +49,7 @@ export class GeminiAppService {
       2. REPO AWARENESS: You have full access to REPO_STATE. When asked to modify, provide the complete updated file content.
       3. ANDROID CONTEXT: Remember this is for Android. Use mobile-first design patterns, Material Design 3 principles, and consider native plugins (Camera, GPS, etc.) via Capacitor.
       4. BACKEND: If Firebase is connected, suggest database schema changes or cloud function logic where relevant.
+      5. NAVIGATION: When navigation connections exist between screens, ensure they are reflected in click handlers and routing logic.
 
       USER-DEFINED SYSTEM INSTRUCTIONS:
       ${persistentInstructions}
@@ -66,7 +71,7 @@ export class GeminiAppService {
     const responseStream = await ai.models.generateContentStream({
       model: "gemini-3-flash-preview",
       contents: [
-        { role: 'user', parts: [{ text: `REPO_STATE:\n${fileContext}\n\n${firebaseContext}\n\nREQUEST_SCOPE: ${scope}\nUSER_COMMAND: ${userMessage}` }] }
+        { role: 'user', parts: [{ text: `REPO_STATE:\n${fileContext}\n\n${firebaseContext}\n\n${connectionsContext}\n\nREQUEST_SCOPE: ${scope}\nUSER_COMMAND: ${userMessage}` }] }
       ],
       config: {
         systemInstruction,

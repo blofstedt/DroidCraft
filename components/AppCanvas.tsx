@@ -1,8 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import NativePwaFrame from './NativePwaFrame';
-import { ScreenPosition, UIElementRef } from '../types';
-import { MoveIcon, MousePointer2Icon, ZoomInIcon, ZoomOutIcon, MaximizeIcon } from 'lucide-react';
+import NavigationArrows from './NavigationArrows';
+import { ScreenPosition, UIElementRef, NavigationConnection } from '../types';
+import { ZoomInIcon, ZoomOutIcon, MaximizeIcon } from 'lucide-react';
 
 interface Props {
   files: Record<string, any>;
@@ -14,6 +15,9 @@ interface Props {
   screenPositions: Record<string, ScreenPosition>;
   onUpdatePosition: (path: string, pos: ScreenPosition) => void;
   version: number;
+  connections: NavigationConnection[];
+  onAddConnection: (connection: NavigationConnection) => void;
+  onRemoveConnection: (connectionId: string) => void;
 }
 
 const AppCanvas: React.FC<Props> = ({ 
@@ -25,11 +29,16 @@ const AppCanvas: React.FC<Props> = ({
   selectedElementId, 
   screenPositions,
   onUpdatePosition,
-  version
+  version,
+  connections,
+  onAddConnection,
+  onRemoveConnection
 }) => {
   const [zoom, setZoom] = useState(0.6);
   const [pan, setPan] = useState({ x: 100, y: 100 });
   const [isPanning, setIsPanning] = useState(false);
+  const [connectingFrom, setConnectingFrom] = useState<{ screen: string; elementId: string; elementLabel: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; screen: string; element?: UIElementRef } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const htmlFiles = Object.keys(files).filter(f => f.endsWith('.html'));
@@ -47,6 +56,38 @@ const AppCanvas: React.FC<Props> = ({
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
       setIsPanning(true);
     }
+    if (contextMenu) setContextMenu(null);
+  };
+
+  const handleScreenClick = (path: string) => {
+    if (connectingFrom) {
+      if (connectingFrom.screen !== path) {
+        const newConnection: NavigationConnection = {
+          id: Date.now().toString(),
+          fromScreen: connectingFrom.screen,
+          fromElementId: connectingFrom.elementId,
+          fromElementLabel: connectingFrom.elementLabel,
+          toScreen: path,
+          action: 'navigate'
+        };
+        onAddConnection(newConnection);
+      }
+      setConnectingFrom(null);
+      return;
+    }
+    onSelectScreen(path);
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, screen: string, element?: UIElementRef) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (mode !== 'build') return;
+    setContextMenu({ x: e.clientX, y: e.clientY, screen, element });
+  };
+
+  const startConnecting = (screen: string, elementId: string, elementLabel: string) => {
+    setConnectingFrom({ screen, elementId, elementLabel });
+    setContextMenu(null);
   };
 
   useEffect(() => {
@@ -65,10 +106,21 @@ const AppCanvas: React.FC<Props> = ({
     };
   }, [isPanning]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setContextMenu(null);
+        setConnectingFrom(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <div 
       ref={containerRef}
-      className="flex-1 relative overflow-hidden bg-[#080808] cursor-crosshair"
+      className={`flex-1 relative overflow-hidden bg-[#080808] ${connectingFrom ? 'cursor-pointer' : 'cursor-crosshair'}`}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       style={{
@@ -77,6 +129,21 @@ const AppCanvas: React.FC<Props> = ({
         backgroundPosition: `${pan.x}px ${pan.y}px`
       }}
     >
+      {/* Navigation Arrows Layer */}
+      <NavigationArrows
+        connections={connections}
+        screenPositions={screenPositions}
+        htmlFiles={htmlFiles}
+        zoom={zoom}
+        pan={pan}
+        onAddConnection={onAddConnection}
+        onRemoveConnection={onRemoveConnection}
+        activeFile={activeFile}
+        connectingFrom={connectingFrom}
+        onStartConnect={(screen, elementId, elementLabel) => setConnectingFrom({ screen, elementId, elementLabel })}
+        onCancelConnect={() => setConnectingFrom(null)}
+      />
+
       {/* Canvas Layer */}
       <div 
         className="absolute transition-transform duration-75 ease-out"
@@ -92,7 +159,7 @@ const AppCanvas: React.FC<Props> = ({
           return (
             <div 
               key={path}
-              className={`absolute transition-shadow duration-300 ${isActive ? 'z-50' : 'z-10'}`}
+              className={`absolute transition-shadow duration-300 ${isActive ? 'z-50' : 'z-10'} ${connectingFrom && connectingFrom.screen !== path ? 'ring-4 ring-orange-500/30 rounded-[4rem] animate-pulse' : ''}`}
               style={{ left: pos.x, top: pos.y }}
             >
               {/* Screen Label */}
@@ -100,10 +167,14 @@ const AppCanvas: React.FC<Props> = ({
                 className={`mb-4 flex items-center gap-3 px-4 py-2 rounded-xl border backdrop-blur-md cursor-pointer transition-all ${
                   isActive 
                   ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-900/40' 
+                  : connectingFrom && connectingFrom.screen !== path
+                  ? 'bg-orange-600/80 border-orange-400 text-white shadow-lg shadow-orange-900/40'
                   : 'bg-[#111]/80 border-white/10 text-slate-500 hover:border-white/30'
                 }`}
-                onClick={() => onSelectScreen(path)}
+                onClick={() => handleScreenClick(path)}
+                onContextMenu={(e) => handleContextMenu(e, path)}
                 onMouseDown={(e) => {
+                  if (connectingFrom) return;
                   e.stopPropagation();
                   const startX = e.clientX;
                   const startY = e.clientY;
@@ -131,7 +202,14 @@ const AppCanvas: React.FC<Props> = ({
               </div>
 
               {/* Native Device Frame */}
-              <div className={isActive ? 'ring-4 ring-blue-500/30 rounded-[4rem]' : ''}>
+              <div 
+                className={isActive ? 'ring-4 ring-blue-500/30 rounded-[4rem]' : ''}
+                onContextMenu={(e) => {
+                  if (mode === 'build') {
+                    handleContextMenu(e, path);
+                  }
+                }}
+              >
                 <NativePwaFrame
                   key={`${path}-${version}`}
                   html={files[path]?.content || ''}
@@ -139,8 +217,28 @@ const AppCanvas: React.FC<Props> = ({
                   mode={isActive ? mode : 'test'}
                   highlightId={isActive ? selectedElementId : null}
                   onInteract={(el) => {
+                    if (connectingFrom) {
+                      if (connectingFrom.screen !== path) {
+                        const newConnection: NavigationConnection = {
+                          id: Date.now().toString(),
+                          fromScreen: connectingFrom.screen,
+                          fromElementId: connectingFrom.elementId,
+                          fromElementLabel: connectingFrom.elementLabel,
+                          toScreen: path,
+                          action: 'navigate'
+                        };
+                        onAddConnection(newConnection);
+                        setConnectingFrom(null);
+                      }
+                      return;
+                    }
                     if (!isActive) onSelectScreen(path);
                     onInteract(el, null);
+                  }}
+                  onRightClick={(el) => {
+                    if (mode === 'build' && el) {
+                      startConnecting(path, el.id, el.text || el.tagName || 'Element');
+                    }
                   }}
                 />
               </div>
@@ -148,6 +246,63 @@ const AppCanvas: React.FC<Props> = ({
           );
         })}
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed z-[200] bg-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl p-2 min-w-[200px] animate-in fade-in zoom-in-95 duration-150"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <div className="px-3 py-2 border-b border-white/5 mb-1">
+            <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">
+              {contextMenu.screen} {contextMenu.element ? `· ${contextMenu.element.tagName}` : ''}
+            </span>
+          </div>
+          {htmlFiles.filter(f => f !== contextMenu.screen).map(targetScreen => (
+            <button
+              key={targetScreen}
+              onClick={() => {
+                const elementId = contextMenu.element?.id || `${contextMenu.screen}-element`;
+                const elementLabel = contextMenu.element?.text?.substring(0, 20) || contextMenu.element?.tagName || 'Element';
+                const newConnection: NavigationConnection = {
+                  id: Date.now().toString(),
+                  fromScreen: contextMenu.screen,
+                  fromElementId: elementId,
+                  fromElementLabel: elementLabel,
+                  toScreen: targetScreen,
+                  action: 'navigate'
+                };
+                onAddConnection(newConnection);
+                setContextMenu(null);
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-white/5 transition-all group"
+            >
+              <div className="w-6 h-6 bg-orange-600/20 rounded-lg flex items-center justify-center group-hover:bg-orange-600/30 transition-all">
+                <MaximizeIcon size={10} className="text-orange-400" />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-300 block">Navigate to {targetScreen}</span>
+                <span className="text-[8px] text-slate-600">Creates arrow connection</span>
+              </div>
+            </button>
+          ))}
+          <div className="border-t border-white/5 mt-1 pt-1">
+            <button
+              onClick={() => {
+                const elementId = contextMenu.element?.id || `${contextMenu.screen}-element`;
+                const elementLabel = contextMenu.element?.text?.substring(0, 20) || contextMenu.element?.tagName || 'Element';
+                startConnecting(contextMenu.screen, elementId, elementLabel);
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-white/5 transition-all"
+            >
+              <div className="w-6 h-6 bg-blue-600/20 rounded-lg flex items-center justify-center">
+                <MaximizeIcon size={10} className="text-blue-400" />
+              </div>
+              <span className="text-[10px] font-bold text-slate-400">Pick target screen...</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Canvas HUD Controls */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-[#111]/90 border border-white/10 p-2 rounded-2xl backdrop-blur-xl shadow-2xl z-[100]">
@@ -171,7 +326,7 @@ const AppCanvas: React.FC<Props> = ({
 
       {/* Helper Text */}
       <div className="absolute top-8 left-1/2 -translate-x-1/2 text-[9px] font-black text-slate-600 uppercase tracking-[0.3em] pointer-events-none">
-        Alt + Drag to Pan • Ctrl + Scroll to Zoom
+        Alt + Drag to Pan • Ctrl + Scroll to Zoom • Right-click elements to connect screens
       </div>
     </div>
   );

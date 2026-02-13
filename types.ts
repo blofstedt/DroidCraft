@@ -24,6 +24,7 @@ export interface ProjectState {
   persistentInstructions?: string;
   screenPositions?: Record<string, ScreenPosition>;
   keystore?: KeystoreState;
+  connections?: NavigationConnection[];
 }
 
 export interface KeystoreState {
@@ -51,8 +52,19 @@ export interface FirebaseUser {
 
 export interface FirebaseCollection {
   name: string;
-  schema: Record<string, any>;
+  schema: Record<string, FieldType>;
   recordCount: number;
+}
+
+export type FieldType = 'string' | 'number' | 'boolean' | 'timestamp' | 'array' | 'map' | 'reference' | 'any';
+
+export interface NavigationConnection {
+  id: string;
+  fromScreen: string;
+  fromElementId: string;
+  fromElementLabel: string;
+  toScreen: string;
+  action: 'navigate' | 'modal' | 'replace';
 }
 
 export interface HistoryEntry {
