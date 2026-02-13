@@ -213,7 +213,7 @@ const AppCanvas: React.FC<Props> = ({
                 <NativePwaFrame
                   key={`${path}-${version}`}
                   html={files[path]?.content || ''}
-                  js={files['app.js']?.content || ''}
+                  js={(files['app.js']?.content || '') + '\n' + (files[path.replace('.html', '.nav.js')]?.content || '')}
                   mode={isActive ? mode : 'test'}
                   highlightId={isActive ? selectedElementId : null}
                   onInteract={(el) => {
